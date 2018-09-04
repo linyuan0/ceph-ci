@@ -11442,7 +11442,7 @@ SnapSetContext *PrimaryLogPG::get_snapset_context(
       try {
 	ssc->snapset.decode(bvp);
       } catch (buffer::error& e) {
-        dout(0) << __func__ << " Can't decode snapset: " << e << dendl;
+        dout(0) << __func__ << " Can't decode snapset: " << e.what() << dendl;
 	return NULL;
       }
       ssc->exists = true;
