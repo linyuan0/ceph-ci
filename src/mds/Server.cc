@@ -383,7 +383,6 @@ void Server::finish_reclaim_session(Session *session, const MClientReclaimReply:
 	    assert(mds->mds_lock.is_locked_by_me());
 	    Session *session = mds->sessionmap.get_session(entity_name_t::CLIENT(session_id));
 	    if (!session) {
-	      reply->put();
 	      return;
 	    }
 	    auto epoch = mds->objecter->with_osdmap([](const OSDMap &map){ return map.get_epoch(); });
@@ -417,7 +416,6 @@ void Server::handle_client_reclaim(const MClientReclaim::const_ref &m)
 
   if (!session) {
     dout(0) << " ignoring sessionless msg " << *m << dendl;
-    m->put();
     return;
   }
 
@@ -431,7 +429,6 @@ void Server::handle_client_reclaim(const MClientReclaim::const_ref &m)
   } else {
     reclaim_session(session, m);
   }
-  m->put();
 }
 
 void Server::handle_client_session(const MClientSession::const_ref &m)
@@ -1582,9 +1579,14 @@ std::pair<bool, uint64_t> Server::recall_client_state(MDSGatherBuilder* gather, 
       uint64_t recall = std::min<uint64_t>(recall_max_caps, num_caps-newlim);
       newlim = num_caps-recall;
       const uint64_t session_recall_throttle = session->get_recall_caps_throttle();
+      const uint64_t session_recall_throttle2o = session->get_recall_caps_throttle2o();
       const uint64_t global_recall_throttle = recall_throttle.get();
       if (session_recall_throttle+recall > recall_max_decay_threshold) {
         dout(15) << "  session recall threshold (" << recall_max_decay_threshold << ") hit at " << session_recall_throttle << "; skipping!" << dendl;
+        throttled = true;
+        continue;
+      } else if (session_recall_throttle2o+recall > recall_max_caps*2) {
+        dout(15) << "  session recall 2nd-order threshold (" << 2*recall_max_caps << ") hit at " << session_recall_throttle2o << "; skipping!" << dendl;
         throttled = true;
         continue;
       } else if (global_recall_throttle+recall > recall_global_max_decay_threshold) {
@@ -1605,7 +1607,9 @@ std::pair<bool, uint64_t> Server::recall_client_state(MDSGatherBuilder* gather, 
            * session threshold for the session's cap recall throttle.
            */
           dout(15) << "  2*session_release < session_recall"
-                      " (2*" << session_release << " < " << session_recall << ");"
+                      " (2*" << session_release << " < " << session_recall << ") &&"
+                      " 2*session_recall < recall_max_decay_threshold"
+                      " (2*" << session_recall << " > " << recall_max_decay_threshold << ")"
                       " Skipping because we are unlikely to get more released." << dendl;
           continue;
         } else if (recall < recall_max_caps && 2*recall < session_recall) {

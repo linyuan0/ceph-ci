@@ -313,6 +313,15 @@ private:
     Context *timer_task = nullptr;
   };
 
+  auto do_trim() {
+    auto [throttled, count] = mdcache->trim(UINT64_MAX);
+    dout(10) << __func__
+             << (throttled ? " (throttled)" : "")
+             << " trimmed " << count << " caps" << dendl;
+    dentries_trimmed += count;
+    return std::make_pair(throttled, count);
+  }
+
   void recall_client_state() {
     dout(20) << __func__ << dendl;
     auto now = mono_clock::now();
@@ -333,12 +342,15 @@ private:
       ctx->start_timer();
       gather->set_finisher(new MDSInternalContextWrapper(mds, ctx));
       gather->activate();
+      mdlog->flush(); /* use down-time to incrementally flush log */
+      do_trim(); /* use down-time to incrementally trim cache */
     } else {
       if (!gather->has_subs()) {
         delete gather;
         return handle_recall_client_state(0);
       } else if (recall_timeout > 0 && duration > recall_timeout) {
-        delete gather;
+        gather->set_finisher(new C_MDSInternalNoop);
+        gather->activate();
         return handle_recall_client_state(-ETIMEDOUT);
       } else {
         uint64_t remaining = (recall_timeout == 0 ? 0 : recall_timeout-duration);
@@ -400,11 +412,7 @@ private:
   void trim_cache() {
     dout(20) << __func__ << dendl;
 
-    auto [throttled, count] = mdcache->trim(UINT64_MAX);
-    dout(10) << __func__
-             << (throttled ? " (throttled)" : "")
-             << " trimmed " << count << " caps" << dendl;
-    dentries_trimmed += count;
+    auto [throttled, count] = do_trim();
     if (throttled && count > 0) {
       auto timer = new FunctionContext([this](int _) {
         trim_cache();
@@ -730,25 +738,26 @@ void MDSRankDispatcher::tick()
   sessionmap.update_average_session_age();
 
   if (is_active() || is_stopping()) {
-    server->recall_client_state(nullptr, Server::RecallFlags::ENFORCE_MAX);
-    mdcache->trim();
-    mdcache->trim_client_leases();
-    mdcache->check_memory_usage();
     mdlog->trim();  // NOT during recovery!
+  }
+
+  // ...
+  if (is_clientreplay() || is_active() || is_stopping()) {
+    mdcache->trim_client_leases();
+    mdcache->trim();
+    mdcache->check_memory_usage();
+
+    server->recall_client_state(nullptr, Server::RecallFlags::ENFORCE_MAX);
+
+    server->find_idle_sessions();
+    server->evict_cap_revoke_non_responders();
+    locker->tick();
   }
 
   // log
   if (logger) {
     logger->set(l_mds_subtrees, mdcache->num_subtrees());
-
     mdcache->log_stat();
-  }
-
-  // ...
-  if (is_clientreplay() || is_active() || is_stopping()) {
-    server->find_idle_sessions();
-    server->evict_cap_revoke_non_responders();
-    locker->tick();
   }
 
   if (is_reconnect())
@@ -1986,7 +1995,6 @@ void MDSRank::active_start()
   mdcache->start_files_to_recover();
 
   mdcache->reissue_all_caps();
-  mdcache->activate_stray_manager();
 
   finish_contexts(g_ceph_context, waiting_for_active);  // kick waiters
 }

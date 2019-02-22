@@ -140,7 +140,6 @@ target_link_libraries(ceph_test_librbd
   cls_journal_client
   cls_rbd_client
   librados
-  librados-cxx
   ${UNITTEST_LIBS}
   radostest)
 target_compile_definitions(ceph_test_librbd PRIVATE "TEST_LIBRBD_INTERNALS")
@@ -156,7 +155,6 @@ target_link_libraries(ceph_test_librbd_api
   radostest-cxx
   librbd
   librados
-  librados-cxx
   ${UNITTEST_LIBS})
 
 add_executable(ceph_test_librbd_fsx
@@ -166,7 +164,6 @@ add_executable(ceph_test_librbd_fsx
 target_link_libraries(ceph_test_librbd_fsx
   librbd
   librados
-  librados-cxx
   journal
   global
   m
