@@ -134,11 +134,6 @@ if(LINUX)
 endif(LINUX)
 CHECK_INCLUDE_FILES("valgrind/helgrind.h" HAVE_VALGRIND_HELGRIND_H)
 
-CHECK_INCLUDE_FILE_CXX("amqp.h" HAVE_AMQP_H)
-if(NOT HAVE_AMQP_H)
-    message(FATAL_ERROR "Can't find librabbitmq. Please run install-deps.sh")
-endif()
-
 include(CheckTypeSize)
 set(CMAKE_EXTRA_INCLUDE_FILES "linux/types.h")
 CHECK_TYPE_SIZE(__be16 __BE16) 
@@ -440,6 +435,7 @@ option(WITH_RADOSGW "Rados Gateway is enabled" ON)
 option(WITH_RADOSGW_FCGI_FRONTEND "Rados Gateway's FCGI frontend is enabled" OFF)
 option(WITH_RADOSGW_BEAST_FRONTEND "Rados Gateway's Beast frontend is enabled" ON)
 option(WITH_RADOSGW_BEAST_OPENSSL "Rados Gateway's Beast frontend uses OpenSSL" ON)
+option(WITH_RADOSGW_AMQP_ENDPOINT "Rados Gateway's pubsub support for AMQP push endpoint" ON)
 
 if(WITH_RADOSGW)
   find_package(EXPAT REQUIRED)
@@ -576,7 +572,7 @@ option(ENABLE_COVERAGE "Coverage is enabled" OFF)
 option(PG_DEBUG_REFS "PG Ref debugging is enabled" OFF)
 
 option(WITH_TESTS "enable the build of ceph-test package scripts/binaries" ON)
-set("UNIT_TESTS_BUILT", ${WITH_TESTS})
+set(UNIT_TESTS_BUILT ${WITH_TESTS})
 set(CEPH_TEST_TIMEOUT 3600 CACHE STRING 
   "Maximum time before a CTest gets killed" )
 
