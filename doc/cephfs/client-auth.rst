@@ -153,3 +153,21 @@ The optional ``{network/prefix}`` is a standard network name and
 prefix length in CIDR notation (e.g., ``10.3.0.0/16``).  If present,
 the use of this capability is restricted to clients connecting from
 this network.
+
+File system Information Restriction
+===================================
+
+If desired, the monitor cluster can present a limited view of the file systems
+available. In this case, the monitor cluster will only inform clients about
+filesystems specified by the administrator. Other filesystems will not be
+reported and commands affecting them will be ignored as if the filesystems
+did not exist.::
+
+ client.0
+     key: AQAz7EVWygILFRAAdIcuJ12opU/JKyfFmxhuaw==
+     caps: [mon] allow rw fsid=1, allow rw fsid=2
+
+In this case, the monitor cluster will display information about the MDS
+daemons associated with file system IDs 1 and 2. Standby MDS daemons will
+always be displayed. Note that information about restricted MDS daemons and
+filesystems may become available by other means, such as ``ceph health detail``.
