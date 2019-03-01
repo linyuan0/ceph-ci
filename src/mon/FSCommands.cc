@@ -20,6 +20,7 @@
 #include "MgrStatMonitor.h"
 
 
+
 static const string EXPERIMENTAL_WARNING("Warning! This feature is experimental."
 "It may cause problems up to and including data loss."
 "Consult the documentation at ceph.com, and if unsure, do not proceed."
@@ -298,11 +299,13 @@ public:
 
   int handle(
       Monitor *mon,
-      FSMap &fsmap,
+      FSMap &f,
       MonOpRequestRef op,
       const cmdmap_t& cmdmap,
       std::stringstream &ss) override
   {
+    FSMap fsmap = f;
+    fsmap.filter(op->get_session()->get_allowed_fsids());
     std::string fs_name;
     if (!cmd_getval(cmdmap, "fs_name", fs_name) || fs_name.empty()) {
       ss << "Missing filesystem name";
@@ -311,8 +314,15 @@ public:
 
     auto fs = fsmap.get_filesystem(fs_name);
     if (fs == nullptr) {
-      ss << "Not found: '" << fs_name << "'";
+      ss << "Filesystem not found: '" << fs_name << "'";
       return -ENOENT;
+    }
+
+    fs_cluster_id_t fsid = fs->fscid;
+    if (fsid != FS_CLUSTER_ID_NONE
+	&& !op->get_session()->fsid_capable(fsid, MON_CAP_W)) {
+      ss << "Permission denied: '" << fs_name << "'";
+      return -EPERM;
     }
 
     string var;
