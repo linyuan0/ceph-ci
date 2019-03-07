@@ -475,6 +475,7 @@ private:
 
 MDSRank::MDSRank(
     mds_rank_t whoami_,
+    fs_cluster_id_t fsid_,
     ceph::mutex &mds_lock_,
     LogChannelRef &clog_,
     SafeTimer &timer_,
@@ -485,7 +486,7 @@ MDSRank::MDSRank(
     MgrClient *mgrc,
     Context *respawn_hook_,
     Context *suicide_hook_) :
-    cct(msgr->cct), mds_lock(mds_lock_), clog(clog_),
+    cct(msgr->cct), fsid(fsid_), mds_lock(mds_lock_), clog(clog_),
     timer(timer_), mdsmap(mdsmap_),
     objecter(new Objecter(g_ceph_context, msgr, monc_, nullptr, 0, 0)),
     damage_table(whoami_), sessionmap(this),
@@ -1394,7 +1395,7 @@ void MDSRank::send_message_mds(const ref_t<Message>& m, mds_rank_t mds)
 
   // send mdsmap first?
   if (mds != whoami && peer_mdsmap_epoch[mds] < mdsmap->get_epoch()) {
-    auto _m = make_message<MMDSMap>(monc->get_fsid(), *mdsmap);
+    auto _m = make_message<MMDSMap>(monc->get_fsid(), *mdsmap, fsid);
     messenger->send_to_mds(_m.detach(), mdsmap->get_addrs(mds));
     peer_mdsmap_epoch[mds] = mdsmap->get_epoch();
   }
@@ -3128,6 +3129,7 @@ void MDSRank::command_dump_inode(Formatter *f, const cmdmap_t &cmdmap, std::ostr
 
 void MDSRank::dump_status(Formatter *f) const
 {
+  f->dump_int("fsid", fsid);
   if (state == MDSMap::STATE_REPLAY ||
       state == MDSMap::STATE_STANDBY_REPLAY) {
     mdlog->dump_replay_status(f);
@@ -3486,7 +3488,7 @@ void MDSRank::bcast_mds_map()
   set<Session*> clients;
   sessionmap.get_client_session_set(clients);
   for (const auto &session : clients) {
-    auto m = make_message<MMDSMap>(monc->get_fsid(), *mdsmap);
+    auto m = make_message<MMDSMap>(monc->get_fsid(), *mdsmap, fsid);
     session->get_connection()->send_message2(std::move(m));
   }
   last_client_mdsmap_bcast = mdsmap->get_epoch();
@@ -3494,6 +3496,7 @@ void MDSRank::bcast_mds_map()
 
 MDSRankDispatcher::MDSRankDispatcher(
     mds_rank_t whoami_,
+    fs_cluster_id_t fsid_,
     ceph::mutex &mds_lock_,
     LogChannelRef &clog_,
     SafeTimer &timer_,
@@ -3504,7 +3507,7 @@ MDSRankDispatcher::MDSRankDispatcher(
     MgrClient *mgrc,
     Context *respawn_hook_,
     Context *suicide_hook_)
-  : MDSRank(whoami_, mds_lock_, clog_, timer_, beacon_, mdsmap_,
+  : MDSRank(whoami_, fsid_, mds_lock_, clog_, timer_, beacon_, mdsmap_,
             msgr, monc_, mgrc, respawn_hook_, suicide_hook_)
 {
     g_conf().add_observer(this);
