@@ -58,20 +58,19 @@ class TestCephFSShell(CephFSTestCase):
         return mount_x.client_remote.run(args=args, stdout=BytesIO(),
                                          stderr=BytesIO(), stdin=stdin)
 
-    def get_cephfs_shell_cmd_error(self, cmd, mount_x=None, opts=None,
-                                    stdin=None):
-        return ensure_str(self.run_cephfs_shell_cmd(cmd, mount_x, opts, stdin).stderr.\
-            getvalue().strip())
-
     def get_cephfs_shell_cmd_output(self, cmd, mount_x=None, opts=None,
                                     stdin=None, config_path=None):
-        return ensure_str(self.run_cephfs_shell_cmd(cmd, mount_x, opts, stdin,
-                                         config_path).\
+        return ensure_str(self.run_cephfs_shell_cmd(cmd=cmd, mount_x=mount_x,
+                                         stdin=stdin, opts=opts,
+                                         config_path=config_path).\
             stdout.getvalue().strip())
 
-    def get_cephfs_shell_script_output(self, script, mount_x=None, stdin=None):
-        return ensure_str(self.run_cephfs_shell_script(script, mount_x, stdin).stdout.\
-            getvalue().strip())
+    def get_cephfs_shell_cmd_error(self, cmd, mount_x=None, opts=None,
+                                   stdin=None, config_path=None):
+        return ensure_str(self.run_cephfs_shell_cmd(cmd=cmd, mount_x=mount_x,
+                                         stdin=stdin, opts=opts,
+                                         config_path=config_path).\
+            stderr.getvalue().strip())
 
     def run_cephfs_shell_script(self, script, mount_x=None, stdin=None):
         if mount_x is None:
@@ -88,6 +87,11 @@ class TestCephFSShell(CephFSTestCase):
         log.info('Running script \"' + scriptpath + '\"')
         return mount_x.client_remote.run(args=args, stdout=BytesIO(),
                                          stderr=BytesIO(), stdin=stdin)
+
+    def get_cephfs_shell_script_output(self, script, mount_x=None, stdin=None):
+        return ensure_str(self.run_cephfs_shell_script(script=script, mount_x=mount_x,
+                                            stdin=stdin).\
+            stdout.getvalue().strip())
 
 class TestMkdir(TestCephFSShell):
     def test_mkdir(self):
