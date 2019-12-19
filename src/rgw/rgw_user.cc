@@ -65,9 +65,7 @@ int rgw_user_sync_all_stats(rgw::sal::RGWRadosStore *store, const rgw_user& user
       return ret;
     }
     map<string, rgw::sal::RGWBucket*>& buckets = user_buckets.get_buckets();
-    for (map<string, rgw::sal::RGWBucket*>::iterator i = buckets.begin();
-         i != buckets.end();
-         ++i) {
+    for (auto i = buckets.begin(); i != buckets.end(); ++i) {
       marker = i->first;
 
       rgw::sal::RGWBucket* bucket = i->second;
@@ -1890,8 +1888,9 @@ int RGWUser::execute_remove(RGWUserAdminOpState& op_state, std::string *err_msg,
     }
 
     std::map<std::string, rgw::sal::RGWBucket*>::iterator it;
+    std::string prefix, delimiter;
     for (it = m.begin(); it != m.end(); ++it) {
-      ret = it->second->remove_bucket(true, y);
+      ret = it->second->remove_bucket(true, prefix, delimiter, y);
       if (ret < 0) {
         set_err_msg(err_msg, "unable to delete user data");
         return ret;

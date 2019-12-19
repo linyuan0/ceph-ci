@@ -27,7 +27,7 @@ static void set_param_str(struct req_state *s, const char *name, string& str)
 }
 
 string render_log_object_name(const string& format,
-			      struct tm *dt, string& bucket_id,
+			      struct tm *dt, const string& bucket_id,
 			      const string& bucket_name)
 {
   string o;
@@ -199,7 +199,7 @@ static void log_usage(struct req_state *s, const string& op_name)
 
   if (!bucket_name.empty()) {
     user = s->bucket_owner.get_id();
-    if (s->bucket_info.requester_pays) {
+    if (s->bucket->get_info().requester_pays) {
       payer = s->user->get_id();
     }
   } else {
@@ -330,14 +330,14 @@ int rgw_log_op(RGWRados *store, RGWREST* const rest, struct req_state *s,
     ldout(s->cct, 5) << "nothing to log for operation" << dendl;
     return -EINVAL;
   }
-  if (s->err.ret == -ERR_NO_SUCH_BUCKET) {
+  if (s->err.ret == -ERR_NO_SUCH_BUCKET || rgw::sal::RGWBucket::empty(s->bucket)) {
     if (!s->cct->_conf->rgw_log_nonexistent_bucket) {
       ldout(s->cct, 5) << "bucket " << s->bucket << " doesn't exist, not logging" << dendl;
       return 0;
     }
     bucket_id = "";
   } else {
-    bucket_id = s->bucket.bucket_id;
+    bucket_id = s->bucket->get_bucket_id();
   }
   entry.bucket = rgw_make_bucket_entry_name(s->bucket_tenant, s->bucket_name);
 
@@ -346,8 +346,8 @@ int rgw_log_op(RGWRados *store, RGWREST* const rest, struct req_state *s,
     return 0;
   }
 
-  if (!s->object.empty()) {
-    entry.obj = s->object;
+  if (!rgw::sal::RGWObject::empty(s->object)) {
+    entry.obj = s->object->get_key();
   } else {
     entry.obj = rgw_obj_key("-");
   }
@@ -443,7 +443,7 @@ int rgw_log_op(RGWRados *store, RGWREST* const rest, struct req_state *s,
 
   if (s->cct->_conf->rgw_ops_log_rados) {
     string oid = render_log_object_name(s->cct->_conf->rgw_log_object_name, &bdt,
-				        s->bucket.bucket_id, entry.bucket);
+				        entry.bucket_id, entry.bucket);
 
     rgw_raw_obj obj(store->svc.zone->get_zone_params().log_pool, oid);
 

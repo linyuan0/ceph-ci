@@ -46,6 +46,8 @@ namespace ceph {
 
 namespace rgw::sal {
   class RGWUser;
+  class RGWBucket;
+  class RGWObject;
 }
 
 using ceph::crypto::MD5;
@@ -1613,11 +1615,11 @@ struct req_state : DoutPrefixProvider {
   string bucket_tenant;
   string bucket_name;
 
-  rgw_bucket bucket;
-  rgw_obj_key object;
+  rgw::sal::RGWBucket *bucket{nullptr};
+  rgw::sal::RGWObject *object{nullptr};
   string src_tenant_name;
   string src_bucket_name;
-  rgw_obj_key src_object;
+  rgw::sal::RGWObject* src_object{nullptr};
   ACLOwner bucket_owner;
   ACLOwner owner;
 
@@ -1629,8 +1631,7 @@ struct req_state : DoutPrefixProvider {
 
   string redirect;
 
-  RGWBucketInfo bucket_info;
-  obj_version bucket_ep_objv;
+  //RGWBucketInfo bucket_info;
   real_time bucket_mtime;
   std::map<std::string, ceph::bufferlist> bucket_attrs;
   bool bucket_exists{false};
@@ -1638,7 +1639,7 @@ struct req_state : DoutPrefixProvider {
 
   bool has_bad_meta{false};
 
-  rgw::sal::RGWUser *user;
+  rgw::sal::RGWUser *user{nullptr};
 
   struct {
     /* TODO(rzarzynski): switch out to the static_ptr for both members. */

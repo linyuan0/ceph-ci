@@ -2287,7 +2287,7 @@ public:
   }
 
   void send_response() override {
-    bucket->get_creation_time() = get_state()->bucket_info.creation_time;
+    bucket->get_creation_time() = get_state()->bucket->get_info().creation_time;
     bs.size = bucket->get_size();
     bs.size_rounded = bucket->get_size_rounded();
     bs.creation_time = bucket->get_creation_time();
@@ -2429,16 +2429,16 @@ public:
   size_t bytes_written;
   bool eio;
 
-  RGWWriteRequest(CephContext* _cct, rgw::sal::RGWUser *_user, RGWFileHandle* _fh,
+  RGWWriteRequest(rgw::sal::RGWRadosStore* store, rgw::sal::RGWUser *_user, RGWFileHandle* _fh,
 		  const std::string& _bname, const std::string& _oname)
-    : RGWLibContinuedReq(_cct, _user),
+    : RGWLibContinuedReq(store->ctx(), _user),
       bucket_name(_bname), obj_name(_oname),
       rgw_fh(_fh), filter(nullptr), real_ofs(0),
       bytes_written(0), eio(false) {
 
     int ret = header_init();
     if (ret == 0) {
-      ret = init_from_header(get_state());
+      ret = init_from_header(store, get_state());
     }
     op = this;
   }
@@ -2560,20 +2560,20 @@ public:
 
     src_bucket_name = src_parent->bucket_name();
     // need s->src_bucket_name?
-    src_object.name = src_parent->format_child_name(src_name, false);
+    src_object->set_name(src_parent->format_child_name(src_name, false));
     // need s->src_object?
 
     dest_bucket_name = dst_parent->bucket_name();
     // need s->bucket.name?
-    dest_object = dst_parent->format_child_name(dst_name, false);
+    dest_obj_name = dst_parent->format_child_name(dst_name, false);
     // need s->object_name?
 
-    int rc = valid_s3_object_name(dest_object);
+    int rc = valid_s3_object_name(dest_obj_name);
     if (rc != 0)
       return rc;
 
     /* XXX and fixup key attr (could optimize w/string ref and
-     * dest_object) */
+     * dest_obj_name) */
     buffer::list ux_key;
     fh_key fhk = dst_parent->make_fhk(dst_name);
     rgw::encode(fhk, ux_key);
