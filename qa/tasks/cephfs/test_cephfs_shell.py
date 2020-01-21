@@ -197,6 +197,8 @@ class TestGetAndPut(TestCephFSShell):
                                     'bs=' + str(size) + 'M', 'count=1'])
 
         self.run_cephfs_shell_cmd('put ' + tempdir)
+        log.info('debugtask contents on cephfs- ')
+        self.mount_a.run_shell('find')
         for file_on_cephfs in (tempdir_on_cephfs, dump1_on_cephfs,
                                dump2_on_cephfs, dump3_on_cephfs):
             self.mount_a.stat(file_on_cephfs)
@@ -204,6 +206,8 @@ class TestGetAndPut(TestCephFSShell):
         self.mount_a.run_shell(['rm', '-rf', tempdir])
 
         self.run_cephfs_shell_cmd('get ' + tempdirname)
+        log.info('debugtask contents on cephfs- ')
+        self.mount_a.run_shell('find')
         for file_on_local_fs in (tempdir, dump1, dump2, dump3):
             p = self.mount_a.testcmd(['stat', file_on_local_fs])
 
