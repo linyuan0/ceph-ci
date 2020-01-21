@@ -583,10 +583,12 @@ class CephFSMount(object):
         Raises exception on absent file.
         """
         abs_path = os.path.join(self.mountpoint, fs_path)
+        log.info('debugtask ' + abs_path)
         if follow_symlinks:
             stat_call = "os.stat('" + abs_path + "')"
         else:
             stat_call = "os.lstat('" + abs_path + "')"
+        log.info('debugtask ' + stat_call)
 
         pyscript = dedent("""
             import os
