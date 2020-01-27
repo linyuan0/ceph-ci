@@ -675,6 +675,7 @@ class LocalKernelMount(KernelMount):
             self.cephfs_mntpt = "/"
         cmdargs = ['sudo', './bin/mount.ceph', mon_sock + ':' + \
                    self.cephfs_mntpt, self.hostfs_mntpt, '-v', '-o', opts]
+
         mountcmd_stdout, mountcmd_stderr = BytesIO(), BytesIO()
         try:
             self.client_remote.run(args=cmdargs, timeout=(30*60),
@@ -687,9 +688,17 @@ class LocalKernelMount(KernelMount):
                 return (e, mountcmd_stdout.getvalue().decode(),
                         mountcmd_stderr.getvalue().decode())
 
-        self.client_remote.run(args=['sudo', 'chmod', '1777',
-                               self.hostfs_mntpt], timeout=(5*60))
+        try:
+            self.client_remote.run(args=['sudo', 'chmod', '1777',
+                                   self.hostfs_mntpt], timeout=(5*60))
+        except CommandFailedError:
+            # the client does not have write permissions in cap it holds for
+            # the Ceph FS that was just mounted.
+            if 'permission denied' in stderr.getvalue().decode().lower():
+                pass
+
         self.mounted = True
+
 
     def _run_python(self, pyscript, py_version='python'):
         """

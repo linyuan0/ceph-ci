@@ -255,8 +255,12 @@ class FuseMount(CephFSMount):
             stderr = BytesIO()
             self.client_remote.run(args=['sudo', 'chmod', '1777', self.hostfs_mntpt], timeout=(15*60), cwd=self.test_dir, stderr=stderr)
         except run.CommandFailedError:
-            stderr = stderr.getvalue()
-            if b"Read-only file system".lower() in stderr.lower():
+            stderr = stderr.getvalue().decode().lower()
+            if "read-only file system" in stderr:
+                pass
+            # the client does not have write permissions in cap it holds for
+            # the Ceph FS that was just mounted.
+            elif 'permission denied' in stderr:
                 pass
             else:
                 raise
