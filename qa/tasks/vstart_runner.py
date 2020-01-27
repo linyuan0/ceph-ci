@@ -561,12 +561,44 @@ class LocalKernelMount(KernelMount):
                                       check_status=check_status,
                                       omit_sudo=False)
 
-    def testcmd(self, args, wait=True, stdin=None, omit_sudo=False):
+    def postestcmd(self, args, wait=True, stdin=None):
+        """
+        Conduct a positive test for the given command.
+        """
         # FIXME maybe should add a pwd arg to teuthology.orchestra so that
         # the "cd foo && bar" shenanigans isn't needed to begin with and
         # then we wouldn't have to special case this
-        return self.run_shell(args, wait=wait, stdin=stdin, check_status=False,
-                              omit_sudo=omit_sudo)
+        return self.run_shell(args=args, wait=wait, stdin=stdin)
+
+    def negtestcmd(self, args, wait=True, stdin=None, retval=None,
+                   errmsg=None):
+        """
+        Conduct a negative test for the given command.
+
+        retval, errmsg and expclass are parameters to confirm the cause of
+        command failure.
+        """
+        proc = self.run_shell(args=args, wait=wait, stdin=stdin,
+                              check_status=False)
+        if retval:
+            msg = """Unexpected return value -
+                     received return value: {}
+                     expected return value: {}
+                  """.format(proc.returncode, retval)
+
+            assert proc.returncode == retval, msg
+
+        if errmsg:
+            stderr = proc.stderr.getvalue().lower()
+            msg = """Unexpected error message -
+                     received error message: "{}"
+                     expected error message: "{}"
+                     note: received error message is converted to lowercase
+                  """.format(stderr, errmsg)
+
+            assert errmsg in stderr, msg
+
+        return proc
 
     def testcmd_as_user(self, args, user, wait=True, stdin=None):
         # FIXME maybe should add a pwd arg to teuthology.orchestra so that
@@ -746,12 +778,44 @@ class LocalFuseMount(FuseMount):
                                       check_status=check_status,
                                       omit_sudo=False)
 
-    def testcmd(self, args, wait=True, stdin=None, omit_sudo=True):
+    def postestcmd(self, args, wait=True, stdin=None):
+        """
+        Conduct a positive test for the given command.
+        """
         # FIXME maybe should add a pwd arg to teuthology.orchestra so that
         # the "cd foo && bar" shenanigans isn't needed to begin with and
         # then we wouldn't have to special case this
-        return self.run_shell(args, wait=wait, stdin=stdin, check_status=False,
-                              omit_sudo=omit_sudo)
+        return self.run_shell(args=args, wait=wait, stdin=stdin)
+
+    def negtestcmd(self, args, wait=True, stdin=None, retval=None,
+                   errmsg=None):
+        """
+        Conduct a negative test for the given command.
+
+        retval, errmsg and expclass are parameters to confirm the cause of
+        command failure.
+        """
+        proc = self.run_shell(args=args, wait=wait, stdin=stdin,
+                              check_status=False)
+        if retval:
+            msg = """Unexpected return value -
+                     received return value: {}
+                     expected return value: {}
+                  """.format(proc.returncode, retval)
+
+            assert proc.returncode == retval, msg
+
+        if errmsg:
+            stderr = proc.stderr.getvalue().lower()
+            msg = """Unexpected error message -
+                     received error message: "{}"
+                     expected error message: "{}"
+                     note: received error message is converted to lowercase
+                  """.format(stderr, errmsg)
+
+            assert errmsg in stderr, msg
+
+        return proc
 
     def testcmd_as_user(self, args, user, wait=True, stdin=None):
         # FIXME maybe should add a pwd arg to teuthology.orchestra so that
