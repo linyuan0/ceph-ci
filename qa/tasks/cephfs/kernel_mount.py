@@ -18,30 +18,57 @@ UMOUNT_TIMEOUT = 300
 
 class KernelMount(CephFSMount):
     def __init__(self, ctx, test_dir, client_id, client_remote,
-                 ipmi_user, ipmi_password, ipmi_domain):
-        super(KernelMount, self).__init__(ctx, test_dir, client_id, client_remote)
+                 ipmi_user, ipmi_password, ipmi_domain,
+                 client_keyring_path=None):
+        super(KernelMount, self).__init__(ctx=ctx, test_dir=test_dir,
+            client_id=client_id, client_remote=client_remote,
+            client_keyring_path=client_keyring_path)
 
         self.mounted = False
         self.ipmi_user = ipmi_user
         self.ipmi_password = ipmi_password
         self.ipmi_domain = ipmi_domain
 
-    def mount(self, mount_path=None, mount_fs_name=None, mountpoint=None, mount_options=[]):
-        if mountpoint is not None:
-            self.mountpoint = mountpoint
-        self.setupfs(name=mount_fs_name)
+    def get_key_from_keyfile(self):
+        with open(self.client_keyring_path, 'r') as keyfile:
+            for line in keyfile.read().split('\n'):
+                if line.find('key') != -1:
+                    return line[line.find('=') + 1 :].strip()
+
+    def mount(self, mntopts=[], createfs=True):
+        if client_id is not None:
+            self.client_id = client_id
+            self.client_keyring_path = client_keyring_path
+        self.cephfs_name = cephfs_name
+        self.cephfs_mntpt = cephfs_mntpt
+        if client_remote is not None:
+            self.client_remote = client_remote
+        if hostfs_mntpt is not None:
+            self.hostfs_mntpt = hostfs_mntpt
+
+        # TODO: don't call setupfs() from within mount().
+        if createfs:
+            self.setupfs(name=mount_fs_name)
 
         log.info('Mounting kclient client.{id} at {remote} {mnt}...'.format(
-            id=self.client_id, remote=self.client_remote, mnt=self.mountpoint))
+            id=self.client_id, remote=self.client_remote, mnt=self.hostfs_mntpt))
 
-        self.client_remote.run(args=['mkdir', '-p', self.mountpoint],
-                               timeout=(5*60))
+        stderr = BytesIO()
+        try:
+            self.client_remote.run(args=['mkdir', '-p', self.hostfs_mntpt],
+                                   timeout=(5*60), stderr=stderr)
+        except CommandFailederror:
+            if 'file exists' not in stderr.getvalue().decode().lower():
+                raise
 
         if mount_path is None:
             mount_path = "/"
 
-        opts = 'name={id},norequire_active_mds,conf={conf}'.format(id=self.client_id,
-                                                        conf=self.config_path)
+        if self.client_id is not None:
+            opts = 'name=' + self.client_id
+        if self.client_keyring_path and self.client_id is not None:
+            opts = 'secret=' + self.get_key_from_keyfile()
+        opts += ',norequire_active_mds,conf=' + self.config_path
 
         if mount_fs_name is not None:
             opts += ",mds_namespace={0}".format(mount_fs_name)
@@ -59,7 +86,7 @@ class KernelMount(CephFSMount):
                 '-t',
                 'ceph',
                 ':{mount_path}'.format(mount_path=mount_path),
-                self.mountpoint,
+                self.hostfs_mntpt,
                 '-v',
                 '-o',
                 opts
@@ -68,14 +95,14 @@ class KernelMount(CephFSMount):
         )
 
         self.client_remote.run(
-            args=['sudo', 'chmod', '1777', self.mountpoint], timeout=(5*60))
+            args=['sudo', 'chmod', '1777', self.hostfs_mntpt], timeout=(5*60))
 
         self.mounted = True
 
     def umount(self, force=False):
         log.debug('Unmounting client client.{id}...'.format(id=self.client_id))
 
-        cmd=['sudo', 'umount', self.mountpoint]
+        cmd=['sudo', 'umount', self.hostfs_mntpt]
         if force:
             cmd.append('-f')
 
@@ -95,17 +122,15 @@ class KernelMount(CephFSMount):
             args=[
                 'rmdir',
                 '--',
-                self.mountpoint,
+                self.hostfs_mntpt,
             ],
             wait=False
         )
         run.wait([rproc], UMOUNT_TIMEOUT)
         self.mounted = False
 
-    def cleanup(self):
-        pass
-
-    def umount_wait(self, force=False, require_clean=False, timeout=900):
+    def umount_wait(self, force=False, require_clean=False, timeout=900,
+                    cleanup=True):
         """
         Unlike the fuse client, the kernel client's umount is immediate
         """
@@ -120,23 +145,10 @@ class KernelMount(CephFSMount):
 
             self.kill()
             self.kill_cleanup()
+            if cleanup:
+                self.cleanup()
 
         self.mounted = False
-
-    def is_mounted(self):
-        return self.mounted
-
-    def wait_until_mounted(self):
-        """
-        Unlike the fuse client, the kernel client is up and running as soon
-        as the initial mount() function returns.
-        """
-        assert self.mounted
-
-    def teardown(self):
-        super(KernelMount, self).teardown()
-        if self.mounted:
-            self.umount()
 
     def kill(self):
         """
@@ -147,7 +159,6 @@ class KernelMount(CephFSMount):
         We use IPMI to reboot, because we don't want the client to send any
         releases of capabilities.
         """
-
         con = orchestra_remote.getRemoteConsole(self.client_remote.hostname,
                                                 self.ipmi_user,
                                                 self.ipmi_password,
@@ -155,9 +166,6 @@ class KernelMount(CephFSMount):
         con.hard_reset(wait_for_login=False)
 
         self.mounted = False
-
-    def kill_cleanup(self):
-        assert not self.mounted
 
         # We need to do a sleep here because we don't know how long it will
         # take for a hard_reset to be effected.
@@ -178,16 +186,37 @@ class KernelMount(CephFSMount):
         # Remove mount directory
         self.client_remote.run(args=['uptime'], timeout=10)
 
-        # Remove mount directory
-        self.client_remote.run(
-            args=[
-                'rmdir',
-                '--',
-                self.mountpoint,
-            ],
-            timeout=(5*60),
-            check_status=False,
-        )
+    def cleanup(self):
+        """
+        Remove the mount point.
+        """
+        if self.mounted:
+            raise RuntimeError('Unmount ' + self.hostfs_mntpt + ' before calling '
+                               'cleanup().')
+
+        stderr = BytesIO()
+        try:
+            self.client_remote.run(args=['rmdir', '--', self.hostfs_mntpt],
+                cwd=self.test_dir, stderr=stderr, timeout=(60*5),
+                check_status=False)
+        except CommandFailedError:
+            if b'no such file or directory' not in stderr.getvalue().lower():
+                raise
+
+    def is_mounted(self):
+        return self.mounted
+
+    def wait_until_mounted(self):
+        """
+        Unlike the fuse client, the kernel client is up and running as soon
+        as the initial mount() function returns.
+        """
+        assert self.mounted
+
+    def teardown(self):
+        super(KernelMount, self).teardown()
+        if self.mounted:
+            self.umount()
 
     def _find_debug_dir(self):
         """
