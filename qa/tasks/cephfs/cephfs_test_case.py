@@ -13,6 +13,32 @@ from teuthology.orchestra.run import CommandFailedError
 
 log = logging.getLogger(__name__)
 
+def create_secretfile(keyring_filepath, secret_filepath):
+    """
+    Write secret file; get key from passed key file. Key file name should
+    be the standard way of writing -- "ceph.client.user.keyring".
+    """
+    keyring_filename = os.path.basename(keyring_filepath)
+    assert keyring_filename.find('ceph.client.') != -1
+    assert keyring_filename.find('.keyring') != -1
+
+    client_name = keyring_filename.split('.')[3]
+    secret_filename = client_name + '.secret'
+    if secret_filepath:
+        secret_filepath = os.path.join(secret_filepath, secret_filename)
+    else:
+        secret_filepath = secret_filename
+
+    with open(keyring_filepath, 'r') as keyring_file:
+        for line in keyring_file.split('\n'):
+            if line.find('key') != -1:
+                with open(secret_filepath, 'w') as secret_file:
+                    secret_file.write(line[line.find('=') + 1 :].strip())
+                break
+        else:
+            log.critical('key file had no key. key file -\n' + keyring)
+
+    return secret_filepath
 
 def for_teuthology(f):
     """
@@ -302,3 +328,21 @@ class CephFSTestCase(CephTestCase):
                 return subtrees
             time.sleep(pause)
         raise RuntimeError("rank {0} failed to reach desired subtree state".format(rank))
+
+    def enable_multifs(self):
+        self.mds_cluster.mon_manager.raw_cluster_cmd('fs', 'flag', 'set',
+            'enable_multiple', 'true', '--yes-i-really-mean-it')
+
+    def run_fs_auth(self, fsname, client_id, fspath='/', perms='rw'):
+        """
+        fsname: name of CephFS for which user will be authorized
+        username: user name that will be authorized
+        fspath: path inside CephFS for which authorization will be provided
+        perms: can be 'r', 'w' or 'rw'
+        """
+        client_name = 'client.' + client_id
+        self.fs.mon_manager.raw_cluster_cmd('fs', 'authorize', fsname,
+                                            client_name, fspath, perms)
+        keyring = self.fs.mon_manager.raw_cluster_cmd('auth', 'get', client_name)
+        return keyring
+
