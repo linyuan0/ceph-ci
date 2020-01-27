@@ -277,10 +277,10 @@ class FuseMount(CephFSMount):
                     timeout=(15*60), cwd=self.test_dir, stderr=stderr)
                 break
             except run.CommandFailedError:
-                stderr = stderr.getvalue()
-                if "Read-only file system".lower() in stderr.lower():
+                stderr = stderr.getvalue().lower()
+                if "read-only file system" in stderr:
                     break
-                elif "Permission denied".lower() in stderr.lower():
+                elif "permission denied" in stderr:
                     time.sleep(5)
                 else:
                     raise
