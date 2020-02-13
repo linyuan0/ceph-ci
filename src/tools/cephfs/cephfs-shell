@@ -1586,14 +1586,14 @@ def execute(args):
     return value.
     """
     if not args.exe_and_quit:
-        shell.cmdloop()
+        return shell.cmdloop()
 
     args_to_shellcmd = args.commands[0]
     if len(args.commands) > 1:
         for cmdarg in args.commands[1:]:
             args_to_shellcmd += ' ' + cmdarg
 
-    shell.onecmd(args_to_shellcmd)
+    return shell.onecmd(args_to_shellcmd)
 
 
 if __name__ == '__main__':
@@ -1601,9 +1601,12 @@ if __name__ == '__main__':
 
     setup_cephfs(args.config if args.config else '')
     shell = CephFSShell()
+    # XXX: setting shell.exit_code to zero so that in case there are no errors
+    # and exceptions, it is not set by any method or function of cephfs-shell
+    # and return values from shell.cmdloop() or shell.onecmd() is not an
+    # integer, we can treat it as the return value of cephfs-shell.
     shell.exit_code = 0
     read_ceph_conf(shell, args.config if args.config else '')
 
-    execute(args)
-
-    sys.exit(shell.exit_code)
+    retval = execute(args)
+    sys.exit(retval if retval else shell.exit_code)
