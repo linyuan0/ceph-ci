@@ -989,3 +989,8 @@ class TestConfReading(TestCephFSShell):
         new_debug_val = \
             str_to_bool(output[output.find('debug: ') + len('debug: ') : ])
         assert not debugval == new_debug_val
+
+class TestDummy(CephFSTestCase):
+
+    def test_dummy(self):
+        self.mount_a.client_remote.run(['ls', '/etc/'], check_status=True)
