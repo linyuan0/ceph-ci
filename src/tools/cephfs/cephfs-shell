@@ -1492,7 +1492,10 @@ def setup_cephfs(config_file):
         print(e)
         sys.exit(1)
 
-def get_bool_vals_for_boolopts(val):
+def str_to_bool(val):
+    """
+    Return corresponding bool values for strings like 'true' or 'false'.
+    """
     if not isinstance(val, str):
         return val
 
@@ -1504,36 +1507,44 @@ def get_bool_vals_for_boolopts(val):
     else:
         return val
 
-def read_ceph_conf(shell, config_file):
-    try:
-        shell.debug = get_bool_vals_for_boolopts(cephfs.\
-            conf_get('debug_shell'))
-        shell.allow_ansi = get_bool_vals_for_boolopts(cephfs.\
-            conf_get('allow_ansi'))
-        shell.echo = get_bool_vals_for_boolopts(cephfs.conf_get('echo'))
-        shell.continuation_prompt = get_bool_vals_for_boolopts(cephfs.\
-            conf_get('continuation_prompt'))
-        shell.colors = get_bool_vals_for_boolopts(cephfs.conf_get('colors'))
-        shell.editor = get_bool_vals_for_boolopts(cephfs.conf_get('editor'))
-        shell.feedback_to_output = get_bool_vals_for_boolopts(cephfs.\
-            conf_get('feedback_to_output'))
-        shell.max_completion_items = get_bool_vals_for_boolopts(cephfs.\
-            conf_get('max_completion_items'))
-        shell.prompt = get_bool_vals_for_boolopts(cephfs.conf_get('prompt'))
-        shell.quiet = get_bool_vals_for_boolopts(cephfs.conf_get('quiet'))
-        shell.timing = get_bool_vals_for_boolopts(cephfs.conf_get('timing'))
-    except (OSError, libcephfs.Error) as e:
-        perror(e)
-        shell.exit_code = e.get_error_code()
+def read_shell_conf(shell, shell_conf_file):
+    import configparser
+
+    sec = 'cephfs-shell'
+    opts = []
+    for attr in shell.settables.keys():
+        opts.append(attr)
+
+    # default and only section in our conf file.
+    cp = configparser.ConfigParser(default_section='cephfs-shell',
+                                   strict=False)
+    cp.read(shell_conf_file)
+    for opt in opts:
+        if cp.has_option(sec, opt):
+            setattr(shell, opt, str_to_bool(cp.get(sec, opt)))
+
+def handle_conf(arg_conf=''):
+    conf_filename = 'cephfs-shell.conf'
+    env_var = 'CEPHFS_SHELL_CONF'
+
+    arg_conf = '' if not arg_conf else arg_conf
+    home_dir_conf = os.path.expanduser('~/.' + conf_filename)
+    cwd_conf = './' + conf_filename
+    env_conf = os.environ[env_var] if env_var in os.environ else ''
+
+    # here's the priority by which conf gets read.
+    for path in (arg_conf, env_conf, cwd_conf, home_dir_conf):
+        if os.path.isfile(path):
+            return path
+    else:
+        return ''
 
 if __name__ == '__main__':
-    config_file = ''
-
     exe = sys.argv[0]
 
     main_parser = argparse.ArgumentParser(description='')
     main_parser.add_argument('-c', '--config', action='store',
-                             help='Configuration file_path', type=str)
+                             help='Path to cephfs-shell.conf', type=str)
     main_parser.add_argument(
         '-b', '--batch', action='store', help='Batch File path.', type=str)
     main_parser.add_argument('-t', '--test', action='store',
@@ -1542,8 +1553,10 @@ if __name__ == '__main__':
     main_parser.add_argument('commands', nargs='*',
                              help='comma delimited commands', default=[])
     args = main_parser.parse_args()
-    if args.config:
-        config_file = args.config
+
+    shell_conf_file = handle_conf(args.config)
+    ceph_conf = ''
+
     if args.batch:
         if LooseVersion(cmd2_version) <= LooseVersion("0.9.13"):
             args.commands = ['load ' + args.batch, ',quit']
@@ -1556,10 +1569,10 @@ if __name__ == '__main__':
     sys.argv.append(exe)
     sys.argv.extend([i.strip() for i in ' '.join(args.commands).split(',')])
 
-    setup_cephfs(config_file)
+    setup_cephfs(ceph_conf)
     shell = CephFSShell()
     shell.exit_code = 0
-    read_ceph_conf(shell, config_file)
+    read_shell_conf(shell, shell_conf_file)
     shell.exit_code = shell.cmdloop()
 
     sys.exit(shell.exit_code)
