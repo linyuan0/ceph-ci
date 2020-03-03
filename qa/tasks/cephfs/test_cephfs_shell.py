@@ -7,6 +7,8 @@ import crypt
 import logging
 from tempfile import mkstemp as tempfile_mkstemp
 import math
+from cmd2 import __version__ as cmd2_version
+from distutils.version import LooseVersion
 from sys import version_info as sys_version_info
 from re import search as re_search
 from time import sleep
@@ -14,6 +16,7 @@ from StringIO import StringIO
 from tasks.cephfs.cephfs_test_case import CephFSTestCase
 from teuthology.misc import sudo_write_file
 from teuthology.orchestra.run import CommandFailedError
+
 
 log = logging.getLogger(__name__)
 
@@ -45,8 +48,36 @@ def str_to_bool(val):
 class TestCephFSShell(CephFSTestCase):
     CLIENTS_REQUIRED = 1
 
+    def set_opts_in_conf(self, confpath):
+        """
+        Setting debug to True and colors to False for the sake of convenience
+        during testing.
+        """
+        opts = '\ndebug = True\n'
+        if LooseVersion(cmd2_version) <= LooseVersion("0.9.13"):
+            opts += 'colors = Never\n'
+        elif LooseVersion(cmd2_version) >= LooseVersion("0.9.23"):
+            opts += 'allow_style = Never\n'
+        # no equivalent option was defined by cmd2.
+        else:
+            pass
+
+        if confpath and path.isfile(confpath):
+            with open(confpath, 'r') as conf:
+                confcontents = conf.read() + opts
+        else:
+            confcontents = '[cephfs-shell]' + opts
+            confpath = self.mount_a.client_remote.mktemp(
+                            suffix='cephfs-shell.conf')
+
+        sudo_write_file(self.mount_a.client_remote, confpath,
+                        confcontents)
+        return confpath
+
     def run_cephfs_shell_cmd(self, cmd, mount_x=None, shell_conf_path=None,
                              opts=None, stdin=None):
+        shell_conf_path = self.set_opts_in_conf(shell_conf_path)
+
         if mount_x is None:
             mount_x = self.mount_a
 
@@ -88,6 +119,7 @@ class TestCephFSShell(CephFSTestCase):
     def run_cephfs_shell_script(self, script, mount_x=None,
                                 shell_conf_path=None, opts=None,
                                 stdin=None):
+        shell_conf_path = self.set_opts_in_conf(shell_conf_path)
         if mount_x is None:
             mount_x = self.mount_a
 
@@ -102,6 +134,7 @@ class TestCephFSShell(CephFSTestCase):
         if shell_conf_path:
             args += ["-c", shell_conf_path]
         args += ['-b', scriptpath]
+
         log.info('Running script \"' + scriptpath + '\"')
         return mount_x.client_remote.run(args=args, stdout=StringIO(),
                                          stderr=StringIO(), stdin=stdin)
