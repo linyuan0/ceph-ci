@@ -78,6 +78,12 @@ extern const mds_gid_t MDS_GID_NONE;
 
 typedef int32_t fs_cluster_id_t;
 constexpr fs_cluster_id_t FS_CLUSTER_ID_NONE = -1;
+
+/* 'allow rw path=<path>' should mean "allow access to all FSs containing path
+ <path>". This maintains backward compatibility. Assigning following value
+should allow access to all FSs. */
+constexpr fs_cluster_id_t FS_CLUSTER_ID_ALL = -2;
+
 // The namespace ID of the anonymous default filesystem from legacy systems
 constexpr fs_cluster_id_t FS_CLUSTER_ID_ANONYMOUS = 0;
 

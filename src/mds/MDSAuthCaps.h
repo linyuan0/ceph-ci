@@ -92,8 +92,10 @@ struct MDSCapMatch {
   static const int64_t MDS_AUTH_UID_ANY = -1;
 
   MDSCapMatch() : uid(MDS_AUTH_UID_ANY), fsid(FS_CLUSTER_ID_NONE) {}
+
   MDSCapMatch(int64_t uid_, std::vector<gid_t>& gids_) :
     uid(uid_), gids(gids_), fsid(FS_CLUSTER_ID_NONE) {}
+
   explicit MDSCapMatch(const std::string &path_)
     : uid(MDS_AUTH_UID_ANY), path(path_), fsid(FS_CLUSTER_ID_NONE) {
     normalize_path();
@@ -101,6 +103,12 @@ struct MDSCapMatch {
 
   explicit MDSCapMatch(fs_cluster_id_t fsid_)
     : uid(MDS_AUTH_UID_ANY), fsid(fsid_) {
+    normalize_path();
+  }
+
+  explicit MDSCapMatch(const std::string &path_, fs_cluster_id_t fsid_) :
+    uid(MDS_AUTH_UID_ANY), path(path_), fsid(fsid_)
+  {
     normalize_path();
   }
 
@@ -182,21 +190,24 @@ public:
 		  unsigned mask, uid_t new_uid, gid_t new_gid,
 		  const entity_addr_t& addr) const;
   bool path_capable(std::string_view inode_path) const;
-  bool fsid_capable(fs_cluster_id_t fsid, unsigned mask) const {
+  bool fsid_capable(fs_cluster_id_t mds_fsid, unsigned mask) const {
     if (allow_all()) {
       return true;
     }
+
     for (const MDSCapGrant &g : grants) {
-      if (g.match.fsid == fsid
-	  || g.match.fsid == FS_CLUSTER_ID_NONE) {
+      if (g.match.fsid == mds_fsid || g.match.fsid == FS_CLUSTER_ID_NONE ||
+	  g.match.fsid == FS_CLUSTER_ID_ALL) {
 	if (mask & MAY_READ && g.spec.allow_read()) {
 	  return true;
 	}
+
 	if (mask & MAY_WRITE && g.spec.allow_write()) {
 	  return true;
 	}
       }
     }
+
     return false;
   }
 
