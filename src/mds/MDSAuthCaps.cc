@@ -72,7 +72,7 @@ struct MDSCapParser : qi::grammar<Iterator, MDSAuthCaps()>
     match = -(
 	     (uid >> gidlist)[_val = phoenix::construct<MDSCapMatch>(_1, _2)] |
 	     (path >> uid >> gidlist)[_val = phoenix::construct<MDSCapMatch>(_1, _2, _3)] |
-             (path)[_val = phoenix::construct<MDSCapMatch>(_1)] |
+             (fsid >> path)[_val = phoenix::construct<MDSCapMatch>(_2, _1)] |
              (fsid)[_val = phoenix::construct<MDSCapMatch>(_1)]);
 
     // capspec = * | r[w][p][s]

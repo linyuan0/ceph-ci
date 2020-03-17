@@ -92,8 +92,10 @@ struct MDSCapMatch {
   static const int64_t MDS_AUTH_UID_ANY = -1;
 
   MDSCapMatch() : uid(MDS_AUTH_UID_ANY), fsid(FS_CLUSTER_ID_NONE) {}
+
   MDSCapMatch(int64_t uid_, std::vector<gid_t>& gids_) :
     uid(uid_), gids(gids_), fsid(FS_CLUSTER_ID_NONE) {}
+
   explicit MDSCapMatch(const std::string &path_)
     : uid(MDS_AUTH_UID_ANY), path(path_), fsid(FS_CLUSTER_ID_NONE) {
     normalize_path();
@@ -101,6 +103,12 @@ struct MDSCapMatch {
 
   explicit MDSCapMatch(fs_cluster_id_t fsid_)
     : uid(MDS_AUTH_UID_ANY), fsid(fsid_) {
+    normalize_path();
+  }
+
+  explicit MDSCapMatch(const std::string &path_, fs_cluster_id_t fsid_) :
+    uid(MDS_AUTH_UID_ANY), path(path_), fsid(fsid_)
+  {
     normalize_path();
   }
 
