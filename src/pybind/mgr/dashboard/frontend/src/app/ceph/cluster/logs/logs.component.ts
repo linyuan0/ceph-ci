@@ -18,9 +18,11 @@ export class LogsComponent implements OnInit, OnDestroy {
   interval: number;
   bsConfig = {
     dateInputFormat: 'YYYY-MM-DD',
-    containerClass: 'theme-default'
+    containerClass: 'theme-default',
+    maxDate: new Date()
   };
   prioritys: Array<{ name: string; value: string }> = [
+    { name: 'Debug', value: '[DBG]' },
     { name: 'Info', value: '[INF]' },
     { name: 'Warning', value: '[WRN]' },
     { name: 'Error', value: '[ERR]' },

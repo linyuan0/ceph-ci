@@ -13,8 +13,10 @@
             <span class="message">{{ line.message }}</span>
           </p>
 
-          <span *ngIf="contentData.clog.length === 0"
-                i18n>No entries found</span>
+          <span *ngIf="clog.length === 0 "
+                i18n>
+            No log entries found. Please try to select different filter options.
+          </span>
         </div>
       </div>
     </tab>
@@ -30,8 +32,10 @@
             <span class="message">{{ line.message }}</span>
           </p>
 
-          <span *ngIf="contentData.audit_log.length === 0"
-                i18n>No entries found</span>
+          <span *ngIf="audit_log.length === 0"
+                i18n>
+            No log entries found. Please try to select different filter options.
+          </span>
         </div>
       </div>
     </tab>

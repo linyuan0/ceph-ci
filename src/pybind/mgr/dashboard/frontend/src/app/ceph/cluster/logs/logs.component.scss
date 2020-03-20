@@ -37,6 +37,10 @@ p {
   .info {
     color: $color-brand-teal;
   }
+
+  .debug {
+    color: $color-solid-gray;
+  }
 }
 
 ::ng-deep timepicker table tbody tr td {
