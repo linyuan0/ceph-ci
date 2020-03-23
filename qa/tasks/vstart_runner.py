@@ -585,10 +585,20 @@ class LocalKernelMount(KernelMount):
         rproc.wait()
         self.mounted = False
 
+    def get_key_from_keyfile(self):
+        with open(self.client_keyring_path, 'r') as keyfile:
+            for line in keyfile.read().split('\n'):
+                if line.find('key') != -1:
+                    return line[line.find('=') + 1 :].strip()
+
     def mount(self, mntopts=[], createfs=True):
+        global mon_sock
         # TODO: don't call setupfs() from within mount()
         if createfs:
             self.setupfs(name=self.cephfs_name)
+
+        log.info('Mounting kclient client.{id} at {remote} {mnt}...'.format(
+            id=self.client_id, remote=self.client_remote, mnt=self.hostfs_mntpt))
 
         if self.cephfs_mntpt is None:
             self.cephfs_mntpt = "/"
@@ -614,7 +624,7 @@ class LocalKernelMount(KernelMount):
             if 'file exists' not in stderr.getvalue().decode().lower():
                 raise
         self.client_remote.run(args=['sudo', './bin/mount.ceph',
-                                     ':' + self.cephfs_mntpt,
+                                     mon_sock + ':' + self.cephfs_mntpt,
                                      self.hostfs_mntpt, '-v', '-o', opts],
                                timeout=(30*60), omit_sudo=False)
         self.client_remote.run(args=['sudo', 'chmod', '1777',
@@ -686,6 +696,9 @@ class LocalFuseMount(FuseMount):
     def mount(self, mntopts=[], createfs=True):
         for mntopt in mntopts:
             opts += ",{0}".format(mntopt)
+        # TODO: don't call setupfs() from within mount()
+        if createfs:
+            self.setupfs(name=self.cephfs_name)
 
         stderr = BytesIO()
         try:
@@ -1264,6 +1277,10 @@ def exec_test():
     ceph_cluster = LocalCephCluster(ctx)
     mds_cluster = LocalMDSCluster(ctx)
     mgr_cluster = LocalMgrCluster(ctx)
+
+    # useful while mounting cephfs via kernel
+    global mon_sock
+    mon_sock = ceph_cluster.mon_manager.get_msgrv1_mon_socks()[0]
 
     # Construct Mount classes
     mounts = []
