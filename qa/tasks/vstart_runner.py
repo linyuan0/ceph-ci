@@ -599,6 +599,8 @@ class LocalKernelMount(KernelMount):
     def mount(self, mntopts=[], createfs=True):
         self.assert_and_log_minimum_mount_details()
         self.setup_netns()
+        global mon_sock
+
         if self.cephfs_mntpt is None:
             self.cephfs_mntpt = "/"
 
@@ -625,7 +627,7 @@ class LocalKernelMount(KernelMount):
         self.client_remote.run(
             args=['sudo', 'nsenter',
                   '--net=/var/run/netns/{0}'.format(self.netns_name),
-                  './bin/mount.ceph', ':' + self.cephfs_mntpt,
+                  './bin/mount.ceph', mon_sock + ':' + self.cephfs_mntpt,
                   self.hostfs_mntpt, '-v', '-o', opts], timeout=(30*60),
             omit_sudo=False)
         self.client_remote.run(args=['sudo', 'chmod', '1777',
@@ -702,8 +704,6 @@ class LocalFuseMount(FuseMount):
             self.setupfs(name=self.cephfs_name)
         if self.cephfs_name:
             log.info('Mounting Ceph FS ' + self.cephfs_name)
-        for mntopt in mntopts:
-            opts += ",{0}".format(mntopt)
 
         stderr = BytesIO()
         try:
@@ -1296,6 +1296,10 @@ def exec_test():
     ceph_cluster = LocalCephCluster(ctx)
     mds_cluster = LocalMDSCluster(ctx)
     mgr_cluster = LocalMgrCluster(ctx)
+
+    # useful while mounting cephfs via kernel
+    global mon_sock
+    mon_sock = ceph_cluster.mon_manager.get_msgrv1_mon_socks()[0]
 
     # Construct Mount classes
     mounts = []
