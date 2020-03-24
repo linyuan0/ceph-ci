@@ -34,7 +34,7 @@ class KernelMount(CephFSMount):
         self.ipmi_domain = ipmi_domain
         self.mounted = False
 
-    def mount(self, mntopts=[], createfs=True):
+    def mount(self, mntopts=[], createfs=True, check_status=True):
         self.assert_and_log_minimum_mount_details()
         self.setup_netns()
         # TODO: don't call setupfs() from within mount().
@@ -42,8 +42,6 @@ class KernelMount(CephFSMount):
             self.setupfs(name=self.cephfs_name)
         if self.cephfs_name:
             log.info('Mounting Ceph FS ' + self.cephfs_name)
-        if not self.cephfs_mntpt:
-            self.cephfs_mntpt = '/'
 
         stderr = BytesIO()
         try:
@@ -53,41 +51,51 @@ class KernelMount(CephFSMount):
             if 'file exists' not in stderr.getvalue().decode().lower():
                 raise
 
-        opts = 'name=' + self.client_id
-        if self.client_keyring_path and self.client_id is not None:
-            opts += 'secret=' + self.get_key_from_keyfile()
-        opts += ',norequire_active_mds,conf=' + self.config_path
-
-        if self.cephfs_name is not None:
-            opts += ",mds_namespace={0}".format(self.cephfs_name)
-
-        for mntopt in mntopts :
-            opts += ",{0}".format(mntopt)
-
-        self.client_remote.run(
-            args=[
-                'sudo',
-                'adjust-ulimits',
-                'ceph-coverage',
-                '{tdir}/archive/coverage'.format(tdir=self.test_dir),
-                'nsenter',
-                '--net=/var/run/netns/{0}'.format(self.netns_name),
-                '/bin/mount',
-                '-t',
-                'ceph',
-                ':' + self.cephfs_mntpt,
-                self.hostfs_mntpt,
-                '-v',
-                '-o',
-                opts
-            ],
-            timeout=(30*60),
-        )
+        retval = self._run_mount_cmd(mntopts, check_status)
+        if retval:
+            return retval
 
         self.client_remote.run(
             args=['sudo', 'chmod', '1777', self.hostfs_mntpt], timeout=(5*60))
 
         self.mounted = True
+
+    def _run_mount_cmd(self, mntopts, check_status):
+        opts = 'norequire_active_mds,'
+        if self.client_id:
+            opts += 'name=' + self.client_id
+        if self.client_keyring_path and self.client_id:
+            opts += ',secret=' + self.get_key_from_keyfile()
+        if self.cephfs_name:
+            opts += ",mds_namespace=" + self.cephfs_name
+        if self.config_path:
+            opts += ',conf=' + self.config_path
+        for mntopt in mntopts:
+            opts += ",{0}".format(mntopt)
+
+        if not self.cephfs_mntpt:
+            self.cephfs_mntpt = '/'
+        mount_dev = ':' + self.cephfs_mntpt
+        prefix = ['sudo', 'adjust-ulimits', 'ceph-coverage',
+                  self.test_dir + '/archive/coverage',
+                  'nsenter',
+                  '--net=/var/run/netns/{0}'.format(self.netns_name)]
+        cmdargs = prefix + ['/bin/mount', '-t', 'ceph', mount_dev,
+                            self.hostfs_mntpt, '-v', '-o', opts]
+
+        mountcmd_stdout, mountcmd_stderr = BytesIO(), BytesIO()
+        try:
+            self.client_remote.run(args=cmdargs, timeout=(30*60),
+                                   stdout=mountcmd_stdout,
+                                   stderr=mountcmd_stderr)
+        except CommandFailedError as e:
+            log.info('mount command failed')
+            if check_status:
+                raise
+            else:
+                return (e, mountcmd_stdout.getvalue().decode(),
+                        mountcmd_stderr.getvalue().decode())
+        log.info('mount command passed')
 
     def umount(self, force=False):
         if not self.is_mounted():

@@ -445,14 +445,12 @@ class CephFSMount(object):
                 "ip link set brx.{0} up".format(self.nsid)]
         self.client_remote.run(args=args, timeout=(5*60))
 
-    def mount(self, client_id=None, client_keyring_path=None,
-              client_remote=None, cephfs_name=None, cephfs_mntpt=None,
-              hostfs_mntpt=None, mntopts=[], createfs=True):
+    def mount(self, mntopts=[], createfs=True, check_status=True):
         raise NotImplementedError()
 
-    def mount_wait(self, mount_path=None, mount_fs_name=None, mountpoint=None, mount_options=[]):
-        self.mount(mount_path=mount_path, mount_fs_name=mount_fs_name, mountpoint=mountpoint,
-                   mount_options=mount_options)
+    def mount_wait(self, mntopts=[], createfs=True, check_status=True):
+        self.mount(mntopts=mntopts, createfs=createfs,
+                   check_status=check_status)
         self.wait_until_mounted()
 
     def umount(self):
@@ -490,7 +488,8 @@ class CephFSMount(object):
 
     def remount(self, client_id=None, client_keyring_path=None,
                 client_remote=None, hostfs_mntpt=None, cephfs_name=None,
-                cephfs_mntpt=None, mntopts=[], createfs=False, wait=False):
+                cephfs_mntpt=None, mntopts=[], createfs=False, wait=False,
+                check_status=False):
         """
         Remount with new client, on new remote, with some other FS or at new
         mountpoint on host FS or mount a different CephFS directory.
@@ -518,7 +517,7 @@ class CephFSMount(object):
                           client_remote=client_remote, cephfs_name=cephfs_name,
                           cephfs_mntpt=cephfs_mntpt, hostfs_mntpt=hostfs_mntpt)
 
-        retval = self.mount(mntopts=mntopts, createfs=createfs)
+        retval = self.mount(mntopts=mntopts, createfs=createfs, check_status=check_status)
         # XXX: in case check_status was False and mount command failed.
         if retval:
             return retval
