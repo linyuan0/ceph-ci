@@ -659,6 +659,20 @@ class CephFSMount(object):
             if r.exitstatus != 0:
                 raise RuntimeError("Expected file {0} not found".format(suffix))
 
+    def write_file(self, path, data):
+        if path.find(self.hostfs_mntpt) == -1:
+            path = os.path.join(self.hostfs_mntpt, path)
+
+        return self.run_shell(args=['echo', data, run.Raw('|'), 'sudo',
+            'tee', path], omit_sudo=False)
+
+    def read_file(self, path):
+        if path.find(self.hostfs_mntpt) == -1:
+            path = os.path.join(self.hostfs_mntpt, path)
+
+        return self.run_shell(args=['sudo', 'cat', path], omit_sudo=False).\
+            stdout.getvalue().strip()
+
     def create_destroy(self):
         assert(self.is_mounted())
 
