@@ -5,8 +5,10 @@ import logging
 import datetime
 import six
 import time
-from textwrap import dedent
 import os
+from textwrap import dedent
+from time import sleep
+
 from teuthology.orchestra import run
 from teuthology.orchestra.run import CommandFailedError, ConnectionLostError
 from tasks.cephfs.filesystem import Filesystem
@@ -65,9 +67,7 @@ class CephFSMount(object):
         self.fs.wait_for_daemons()
         log.info('Ready to start {}...'.format(type(self).__name__))
 
-    def mount(self, client_id=None, client_keyring_path=None,
-              client_remote=None, cephfs_name=None, cephfs_mntpt=None,
-              hostfs_mntpt=None, mntopts=[], createfs=True):
+    def mount(self, mntopts=[], createfs=True, check_status=True):
         raise NotImplementedError()
 
     def umount(self):
@@ -107,7 +107,7 @@ class CephFSMount(object):
 
     def remount(self, client_id=None, client_keyring_path=None, client_remote=None,
                 cephfs_name=None, cephfs_mntpt=None, hostfs_mntpt=None,
-                mntopts=[], createfs=False):
+                mntopts=[], createfs=False, check_status=True):
         """
         Remount with new client, on new remote, with some other FS or at new
         mountpoint on host FS or mount a different CephFS directory.
@@ -135,7 +135,8 @@ class CephFSMount(object):
                           client_remote=client_remote, cephfs_name=cephfs_name,
                           cephfs_mntpt=cephfs_mntpt, hostfs_mntpt=hostfs_mntpt)
 
-        return self.mount(mntopts=mntopts, createfs=createfs)
+        return self.mount(mntopts=mntopts, createfs=createfs,
+                          check_status=check_status)
 
     def kill_cleanup(self):
         raise NotImplementedError()

@@ -32,7 +32,7 @@ class FuseMount(CephFSMount):
         self.inst = None
         self.addr = None
 
-    def mount(self, mntopts=[], createfs=True):
+    def mount(self, mntopts=[], createfs=True, check_status=True):
         # TODO: don't call setupfs() from within mount().
         if createfs:
             self.setupfs(name=self.cephfs_name)
@@ -123,11 +123,14 @@ class FuseMount(CephFSMount):
         pre_mount_conns = list_connections()
         log.info("Pre-mount connections: {0}".format(pre_mount_conns))
 
+        mountcmd_stdout, mountcmd_stderr = BytesIO(), BytesIO()
         proc = self.client_remote.run(
             args=run_cmd,
             cwd=cwd,
             logger=log.getChild('ceph-fuse.{id}'.format(id=self.client_id)),
             stdin=run.PIPE,
+            stdout=mountcmd_stdout,
+            stderr=mountcmd_stderr,
             wait=False,
         )
         self.fuse_daemon = proc
@@ -145,7 +148,11 @@ class FuseMount(CephFSMount):
             if self.fuse_daemon.finished:
                 # Did mount fail?  Raise the CommandFailedError instead of
                 # hitting the "failed to populate /sys/" timeout
-                self.fuse_daemon.wait()
+                try:
+                    self.fuse_daemon.wait()
+                except CommandFailedError as e:
+                    return (e, mount_stdout.getvalue().decode(),
+                            mount_stderr.getvalue().decode())
             time.sleep(1)
             waited += 1
             if waited > timeout:
@@ -346,6 +353,7 @@ class FuseMount(CephFSMount):
             if require_clean:
                 raise
 
+        self.mounted = False
         if cleanup:
             self.cleanup()
 

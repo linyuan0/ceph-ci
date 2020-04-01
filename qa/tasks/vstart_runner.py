@@ -43,15 +43,17 @@ import os
 import time
 import sys
 import errno
-from unittest import suite, loader
 import unittest
 import platform
+import six
+import logging
+from unittest import suite, loader
+
 from teuthology import misc
 from teuthology.orchestra.run import Raw, quote
 from teuthology.orchestra.daemon import DaemonGroup
 from teuthology.config import config as teuth_config
-import six
-import logging
+from teuthology.orchestra.run import CommandFailedError
 
 def init_log():
     global log
@@ -591,7 +593,7 @@ class LocalKernelMount(KernelMount):
                 if line.find('key') != -1:
                     return line[line.find('=') + 1 :].strip()
 
-    def mount(self, mntopts=[], createfs=True):
+    def mount(self, mntopts=[], createfs=True, check_status=True):
         global mon_sock
         # TODO: don't call setupfs() from within mount()
         if createfs:
@@ -623,12 +625,28 @@ class LocalKernelMount(KernelMount):
         except CommandFailedError:
             if 'file exists' not in stderr.getvalue().decode().lower():
                 raise
-        self.client_remote.run(args=['sudo', './bin/mount.ceph',
-                                     mon_sock + ':' + self.cephfs_mntpt,
-                                     self.hostfs_mntpt, '-v', '-o', opts],
-                               timeout=(30*60), omit_sudo=False)
-        self.client_remote.run(args=['sudo', 'chmod', '1777',
-                                     self.hostfs_mntpt], timeout=(5*60))
+        cmdargs = ['sudo', './bin/mount.ceph', mon_sock + ':' + \
+                   self.cephfs_mntpt, self.hostfs_mntpt, '-v', '-o', opts]
+        mountcmd_stdout, mountcmd_stderr = BytesIO(), BytesIO()
+        try:
+            self.client_remote.run(args=cmdargs, timeout=(30*60),
+                omit_sudo=False, stdout=mountcmd_stdout,
+                stderr=mountcmd_stderr)
+        except CommandFailedError as e:
+            if check_status:
+                raise
+            else:
+                return (e, mountcmd_stdout.getvalue().decode(),
+                        mountcmd_stderr.getvalue().decode())
+
+        stderr = BytesIO()
+        try:
+            self.client_remote.run(args=['sudo', 'chmod', '1777',
+                                     self.hostfs_mntpt], timeout=(5*60),
+                                    stderr=stderr)
+        except CommandFailedError:
+            if b'permission denied' not in stderr.getvalue().lower():
+                raise
 
         self.mounted = True
 
@@ -693,7 +711,7 @@ class LocalFuseMount(FuseMount):
         if self.is_mounted():
             super(LocalFuseMount, self).umount()
 
-    def mount(self, mntopts=[], createfs=True):
+    def mount(self, mntopts=[], createfs=True, check_status=True):
         for mntopt in mntopts:
             opts += ",{0}".format(mntopt)
         # TODO: don't call setupfs() from within mount()
@@ -747,7 +765,9 @@ class LocalFuseMount(FuseMount):
             cmdargs += ["--client_die_on_failed_dentry_invalidate=false"]
         cmdargs += mntopts;
 
-        self.fuse_daemon = self.client_remote.run(args=cmdargs, wait=False)
+        mountcmd_stdout, mountcmd_stderr = BytesIO(), BytesIO()
+        self.fuse_daemon = self.client_remote.run(args=cmdargs, wait=False,
+                stdout=mountcmd_stdout, stderr=mountcmd_stderr)
 
         log.info("Mounting client.{0} with pid {1}".format(self.client_id, self.fuse_daemon.subproc.pid))
 
@@ -758,7 +778,14 @@ class LocalFuseMount(FuseMount):
             if self.fuse_daemon.finished:
                 # Did mount fail?  Raise the CommandFailedError instead of
                 # hitting the "failed to populate /sys/" timeout
-                self.fuse_daemon.wait()
+                try:
+                    self.fuse_daemon.wait()
+                except CommandFailedError as e:
+                    if check_status:
+                        raise
+                    else:
+                        return (e, mountcmd_stdout.getvalue().decode(),
+                                mountcmd_stderr.getvalue().decode())
             time.sleep(1)
             waited += 1
             if waited > 30:

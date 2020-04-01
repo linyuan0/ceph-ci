@@ -1,10 +1,11 @@
 import json
 import logging
 import time
+from io import BytesIO
 from textwrap import dedent
+
 from teuthology.orchestra.run import CommandFailedError
 from teuthology import misc
-
 from teuthology.orchestra import remote as orchestra_remote
 from teuthology.orchestra import run
 from teuthology.contextutil import MaxWhileTries
@@ -35,7 +36,7 @@ class KernelMount(CephFSMount):
                 if line.find('key') != -1:
                     return line[line.find('=') + 1 :].strip()
 
-    def mount(self, mntopts=[], createfs=True):
+    def mount(self, mntopts=[], createfs=True, check_status=True):
         if client_id is not None:
             self.client_id = client_id
             self.client_keyring_path = client_keyring_path
@@ -69,35 +70,36 @@ class KernelMount(CephFSMount):
         if self.client_keyring_path and self.client_id is not None:
             opts = 'secret=' + self.get_key_from_keyfile()
         opts += ',norequire_active_mds,conf=' + self.config_path
-
         if mount_fs_name is not None:
             opts += ",mds_namespace={0}".format(mount_fs_name)
-
         for mount_opt in mount_options :
             opts += ",{0}".format(mount_opt)
 
-        self.client_remote.run(
-            args=[
-                'sudo',
-                'adjust-ulimits',
-                'ceph-coverage',
-                '{tdir}/archive/coverage'.format(tdir=self.test_dir),
-                '/bin/mount',
-                '-t',
-                'ceph',
-                ':{mount_path}'.format(mount_path=mount_path),
-                self.hostfs_mntpt,
-                '-v',
-                '-o',
-                opts
-            ],
-            timeout=(30*60),
-        )
+        self.run_mount_cmd(opts)
 
         self.client_remote.run(
             args=['sudo', 'chmod', '1777', self.hostfs_mntpt], timeout=(5*60))
 
         self.mounted = True
+
+    def run_mount_cmd(self, opts):
+        mount_dev = ':' + mount_path
+        prefix = ['sudo', 'adjust-ulimits', 'ceph-coverage', self.test_dir + \
+                  '/archive/coverage']
+        cmdargs = prefix + ['/bin/mount', '-t', 'ceph', mount_dev,
+                            self.hostfs_mntpt, '-v', '-o', opts]
+
+        mountcmd_stdout, mountcmd_stderr = BytesIO(), BytesIO()
+        try:
+            self.client_remote.run(args=cmdargs, timeout=(30*60),
+                                   stdout=mountcmd_stdout,
+                                    stderr=mountcmd_stderr)
+        except CommandFailedError as e:
+            if check_status:
+                raise
+            else:
+                return (e, mountcmd_stdout.getvalue().decode(),
+                        mountcmd_stderr.getvalue().decode())
 
     def umount(self, force=False):
         log.debug('Unmounting client client.{id}...'.format(id=self.client_id))
