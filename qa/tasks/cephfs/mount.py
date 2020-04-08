@@ -317,6 +317,31 @@ class CephFSMount(object):
                                       stdin=stdin, check_status=check_status,
                                       omit_sudo=omit_sudo)
 
+    def _verify(self, proc, retval=None, errmsg=None):
+        if retval:
+            msg = ('expected return value: {}\nreceived return value: '
+                   '{}\n'.format(retval, proc.returncode))
+            assert proc.returncode == retval, msg
+
+        if errmsg:
+            stderr = proc.stderr.getvalue().lower()
+            msg = ('didn\'t find given string in stderr -\nexpected string: '
+                   '{}\nreceived error message: {}\nnote: received error '
+                   'message is converted to lowercase'.format(errmsg, stderr))
+            assert errmsg in stderr, msg
+
+    def negtestcmd(self, args, retval=None, errmsg=None, stdin=None,
+                   wait=True):
+        """
+        Conduct a negative test for the given command.
+        retval and errmsg are parameters to confirm the cause of command
+        failure.
+        """
+        proc = self.run_shell(args=args, wait=wait, stdin=stdin,
+                              check_status=False)
+        self._verify(proc, retval, errmsg)
+        return proc
+
     def open_no_data(self, basename):
         """
         A pure metadata operation
