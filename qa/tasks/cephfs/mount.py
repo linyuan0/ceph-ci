@@ -45,6 +45,7 @@ class CephFSMount(object):
         else:
             self.hostfs_mntpt = os.path.join(self.test_dir,
                                              'mnt.%s' % (self.client_id))
+        log.info('CephFS.__init__: self.hostfs_mntpt = %s' % (self.hostfs_mntpt))
         self.cephfs_name = cephfs_name
         self.cephfs_mntpt = cephfs_mntpt
 

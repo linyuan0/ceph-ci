@@ -103,13 +103,26 @@ class FuseMount(CephFSMount):
         run_cmd.extend(fuse_cmd)
 
         def list_connections():
+            conn_dir = "/sys/fs/fuse/connections"
+
+            retval = self.client_remote.run(
+                args=['sudo', 'stat', conn_dir], omit_sudo=False,
+                check_status=False).returncode
+            log.info('retval = ' + str(retval))
+            conn_dir_exists = not bool(retval)
+            if not conn_dir_exists:
+                self.client_remote.run(args=['sudo', 'mkdir', '-p', conn_dir],
+                                       omit_sudo=False, check_status=False)
+
+            # TODO: is mounting critical to upcoming listing connections?
+            # shouldn't execution be aborted if mounitng fais?
             self.client_remote.run(
-                args=["sudo", "mount", "-t", "fusectl", "/sys/fs/fuse/connections", "/sys/fs/fuse/connections"],
+                args=["sudo", "mount", "-t", "fusectl", conn_dir, conn_dir],
                 check_status=False,
-                timeout=(15*60)
-            )
+                timeout=(15*60))
+
             try:
-                ls_str = self.client_remote.sh("ls /sys/fs/fuse/connections",
+                ls_str = self.client_remote.sh("ls " + conn_dir,
                                                timeout=(15*60)).strip()
             except CommandFailedError:
                 return []
@@ -146,7 +159,7 @@ class FuseMount(CephFSMount):
         post_mount_conns = list_connections()
         while len(post_mount_conns) <= len(pre_mount_conns):
             if self.fuse_daemon.finished:
-                # Did mount fail?  Raise the CommandFailedError instead of
+                # Did mount fail?  Raise the MountingWithFuseFailed instead of
                 # hitting the "failed to populate /sys/" timeout
                 try:
                     self.fuse_daemon.wait()

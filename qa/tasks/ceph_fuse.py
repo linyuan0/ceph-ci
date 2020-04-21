@@ -142,6 +142,8 @@ def task(ctx, config):
             mount_x.cephfs_mntpt = config.get("mount_path")
         if config.get("mountpoint"):
             mount_x.hostfs_mntpt = config.get("mountpoint")
+        log.info('ceph_fuse: mount_x.cephfs_mntpt = %s' % (mount_x.cephfs_mntpt))
+        log.info('ceph_fuse: mount_x.hostfs_mntpt = %s' % (mount_x.hostfs_mntpt))
         mount_x.mount()
 
     for info in mounted_by_me.values():

@@ -66,6 +66,8 @@ class KernelMount(CephFSMount):
         self.mounted = True
 
     def _run_mount_cmd(self, mntopts, check_status):
+        from time import sleep
+        sleep(5)
         opts = 'norequire_active_mds,'
         if self.client_id:
             opts += 'name=' + self.client_id
