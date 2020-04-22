@@ -607,6 +607,28 @@ class Filesystem(MDSCluster):
 
         self.getinfo(refresh = True)
 
+    def destroy(self):
+        log.info('Destroying file system ' + self.name +  ' and related '
+                'pools')
+
+        # make sure no MDSs are attached to given FS.
+        self.mon_manager.raw_cluster_cmd('fs', 'fail', self.name)
+
+        self.mon_manager.raw_cluster_cmd(
+            'fs', 'rm', self.name, '--yes-i-really-mean-it')
+
+        for poolname in (self.get_data_pool_name(),
+                         self.get_metadata_pool_name()):
+            self.mon_manager.raw_cluster_cmd('osd', 'pool', 'rm', poolname,
+                poolname, '--yes-i-really-really-mean-it')
+
+    def recreate(self):
+        self.destroy()
+
+        self.id = None
+        self.create()
+        self.getinfo(refresh=True)
+
     def check_pool_application(self, pool_name):
         osd_map = self.mon_manager.get_osd_dump_json()
         for pool in osd_map['pools']:
@@ -615,7 +637,6 @@ class Filesystem(MDSCluster):
                     if not "cephfs" in pool['application_metadata']:
                         raise RuntimeError("Pool {pool_name} does not name cephfs as application!".\
                                            format(pool_name=pool_name))
-        
 
     def __del__(self):
         if getattr(self._ctx, "filesystem", None) == self:
@@ -930,12 +951,6 @@ class Filesystem(MDSCluster):
                 raise ValueError("Explicit MDS argument required when multiple MDSs in use")
         else:
             return self.mds_ids[0]
-
-    def recreate(self):
-        log.info("Creating new filesystem")
-        self.delete_all_filesystems()
-        self.id = None
-        self.create()
 
     def put_metadata_object_raw(self, object_id, infile):
         """
