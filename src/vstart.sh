@@ -666,6 +666,8 @@ EOF
         rgw crypt s3 kms backend = testing
         rgw crypt s3 kms encryption keys = testkey-1=YmluCmJvb3N0CmJvb3N0LWJ1aWxkCmNlcGguY29uZgo= testkey-2=aWIKTWFrZWZpbGUKbWFuCm91dApzcmMKVGVzdGluZwo=
         rgw crypt require ssl = false
+        rgw sts key = abcdefghijklmnop
+        rgw s3 auth use sts = true
         ; uncomment the following to set LC days as the value in seconds;
         ; needed for passing lc time based s3-tests (can be verbose)
         ; rgw lc debug interval = 10
@@ -1399,7 +1401,7 @@ do_rgw_create_users()
     local skey='h7GhxuBLTrlhVUyxSPUKUV8r/2EI4ngqJxD7iBdBYLhwluN30JaT3Q=='
     debug echo "setting up user testid"
     $CEPH_BIN/radosgw-admin user create --uid testid --access-key $akey --secret $skey --display-name 'M. Tester' --email tester@ceph.com -c $conf_fn > /dev/null
-
+    
     # Create S3-test users
     # See: https://github.com/ceph/s3-tests
     debug echo "setting up s3-test users"
@@ -1416,14 +1418,16 @@ do_rgw_create_users()
         --display-name john.doe \
         --email john.doe@example.com -c $conf_fn > /dev/null
     $CEPH_BIN/radosgw-admin user create \
-	--tenant testx \
+        --tenant testx \
         --uid 9876543210abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
         --access-key HIJKLMNOPQRSTUVWXYZA \
         --secret opqrstuvwxyzabcdefghijklmnopqrstuvwxyzab \
         --display-name tenanteduser \
         --email tenanteduser@example.com -c $conf_fn > /dev/null
+    $CEPH_BIN/radosgw-admin caps add -c $conf_fn --uid=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --caps="roles=*" > /dev/null
+    $CEPH_BIN/radosgw-admin caps add -c $conf_fn --uid=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --caps="user-policy=*" > /dev/null
 
-    # Create Swift user
+    
     debug echo "setting up user tester"
     $CEPH_BIN/radosgw-admin user create -c $conf_fn --subuser=test:tester --display-name=Tester-Subuser --key-type=swift --secret=testing --access=full > /dev/null
 
@@ -1437,6 +1441,7 @@ do_rgw_create_users()
     echo "  user      : tester"
     echo "  password  : testing"
     echo ""
+
 }
 
 do_rgw()
