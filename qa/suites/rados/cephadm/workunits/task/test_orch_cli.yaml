@@ -9,6 +9,9 @@ tasks:
 - install:
 - cephadm:
     roleless: true
+- cephadm.shell:
+    host.a:
+      - ceph orch apply mon 1
 - cephfs_test_runner:
     module:
       - tasks.cephfs.test_nfs
