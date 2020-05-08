@@ -2,7 +2,6 @@
 Before running this testsuite, add path to cephfs-shell module to $PATH and
 export $PATH.
 """
-from io import BytesIO
 from io import StringIO
 from os import path
 import crypt
@@ -55,8 +54,8 @@ class TestCephFSShell(CephFSTestCase):
         args.extend(("--", cmd))
 
         log.info("Running command: {}".format(" ".join(args)))
-        return mount_x.client_remote.run(args=args, stdout=BytesIO(),
-                                         stderr=BytesIO(), stdin=stdin,
+        return mount_x.client_remote.run(args=args, stdout=StringIO(),
+                                         stderr=StringIO(), stdin=stdin,
                                          check_status=check_status)
 
     def negtest_cephfs_shell_cmd(self, cmd, mount_x=None, opts=None,
@@ -103,8 +102,8 @@ class TestCephFSShell(CephFSTestCase):
 
         args = ["cephfs-shell", "-c", mount_x.config_path, '-b', scriptpath]
         log.info('Running script \"' + scriptpath + '\"')
-        return mount_x.client_remote.run(args=args, stdout=BytesIO(),
-                                         stderr=BytesIO(), stdin=stdin,
+        return mount_x.client_remote.run(args=args, stdout=StringIO(),
+                                         stderr=StringIO(), stdin=stdin,
                                          check_status=True)
 
     def get_cephfs_shell_script_output(self, script, mount_x=None, stdin=None,
